@@ -26,7 +26,11 @@ const client = new MongoClient(uri, {
 });
 
 // Middleware
-app.use(cors());
+
+app.use(cors({
+  origin: ["http://localhost:3000", "https://ridezone-ui.vercel.app"],
+  credentials: true,
+}));
 app.use(express.json());
 
 // Global collections
@@ -146,18 +150,18 @@ app.post('/products', async (req, res) => {
   try {
     if (!productCollection) return res.status(500).json({ message: "Database not connected" });
 
-    const { name, brand, model, price, image, description, userId } = req.body;
-    if (!name || !brand || !price) return res.status(400).json({ message: "Please fill all required fields" });
+    const { title, brand, model, price, image,  shortDescription, userId } = req.body;
+    if (!title || !brand || !price) return res.status(400).json({ message: "Please fill all required fields" });
 
     const safeImage = image && image.startsWith("http") ? image : null;
 
     const result = await productCollection.insertOne({
-      name,
+      title,
       brand,
       model,
       price,
       image: safeImage,
-      description,
+      shortDescription,
       userId,
       createdAt: new Date(),
     });
@@ -246,6 +250,42 @@ async function run() {
     );
 
     console.log("✅ MongoDB Connected Successfully!");
+// -----------------------------
+    // CATEGORY AUTO UPDATE SECTION
+    // -----------------------------
+
+    // First 10 → Bike
+    const first10 = await productCollection.find().limit(10).toArray();
+    if (first10.length > 0) {
+      await productCollection.updateMany(
+        { _id: { $in: first10.map(item => item._id) } },
+        { $set: { category: "Bike" } }
+      );
+      console.log("🚴 First 10 products updated → Bike");
+    }
+
+    // Next 10 → Car
+    const next10 = await productCollection.find().skip(10).limit(10).toArray();
+    if (next10.length > 0) {
+      await productCollection.updateMany(
+        { _id: { $in: next10.map(item => item._id) } },
+        { $set: { category: "Car" } }
+      );
+      console.log("🚗 Next 10 products updated → Car");
+    }
+
+    // Next 10 → Bicycle
+    const next10After20 = await productCollection.find().skip(20).limit(10).toArray();
+    if (next10After20.length > 0) {
+      await productCollection.updateMany(
+        { _id: { $in: next10After20.map(item => item._id) } },
+        { $set: { category: "Bicycle" } }
+      );
+      console.log("🚲 Next 10 products updated → Bicycle");
+    }
+
+    console.log("🏁 Category update completed!");
+
   } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
