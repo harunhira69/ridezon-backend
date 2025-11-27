@@ -19,14 +19,13 @@ if (!process.env.DB_USER || !process.env.DB_PASS) {
   process.exit(1);
 }
 
-// MongoDB connection
+// MongoDB connection setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.tlyifmj.mongodb.net/?appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true },
 });
 
 // Middleware
-
 app.use(cors({
   origin: ["http://localhost:3000", "https://ridezone-ui.vercel.app"],
   credentials: true,
@@ -50,8 +49,10 @@ app.post('/register', async (req, res) => {
     if (!userCollection) return res.status(500).json({ message: "Database not connected yet" });
 
     const { name, email, password } = req.body;
+    // Validation 1: Check for required fields
     if (!name || !email || !password) return res.status(400).json({ message: "All fields are required" });
 
+    // Validation 2: Check for existing user
     const existing = await userCollection.findOne({ email });
     if (existing) return res.status(400).json({ message: "User already exists" });
 
@@ -82,6 +83,7 @@ app.post('/auth/google-signin', async (req, res) => {
     let user = await userCollection.findOne({ email });
 
     if (!user) {
+      // Create new user if not found
       const result = await userCollection.insertOne({
         name,
         email,
@@ -97,6 +99,7 @@ app.post('/auth/google-signin', async (req, res) => {
       });
     }
 
+    // Update existing user if they were a credentials user signing in with Google
     if (!user.googleId) {
       await userCollection.updateOne(
         { email },
@@ -116,7 +119,7 @@ app.post('/auth/google-signin', async (req, res) => {
 });
 
 // -------------------------
-// Product Routes
+// Product Routes (CRUD)
 // -------------------------
 app.get('/products', async (req, res) => {
   try {
@@ -150,7 +153,7 @@ app.post('/products', async (req, res) => {
   try {
     if (!productCollection) return res.status(500).json({ message: "Database not connected" });
 
-    const { title, brand, model, price, image,  shortDescription, userId } = req.body;
+    const { title, brand, model, price, image, shortDescription, userId } = req.body;
     if (!title || !brand || !price) return res.status(400).json({ message: "Please fill all required fields" });
 
     const safeImage = image && image.startsWith("http") ? image : null;
@@ -220,7 +223,7 @@ app.delete('/products/:id', async (req, res) => {
 });
 
 // -------------------------
-// MongoDB Connection
+// MongoDB Connection & Setup
 // -------------------------
 async function run() {
   try {
@@ -231,6 +234,7 @@ async function run() {
     userCollection = db.collection('users');
     productCollection = db.collection('products');
 
+    // Startup Data Fixes/Updates
     // Fix invalid product images
     await productCollection.updateMany(
       { $or: [{ image: { $regex: "i.ibb.co.com" } }, { image: "https://via.placeholder.com/150" }] },
@@ -250,10 +254,8 @@ async function run() {
     );
 
     console.log("✅ MongoDB Connected Successfully!");
-// -----------------------------
+    
     // CATEGORY AUTO UPDATE SECTION
-    // -----------------------------
-
     // First 10 → Bike
     const first10 = await productCollection.find().limit(10).toArray();
     if (first10.length > 0) {
